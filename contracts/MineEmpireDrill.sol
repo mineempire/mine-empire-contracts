@@ -20,6 +20,7 @@ contract MineEmpireDrill is ERC721 {
     uint[][][] private capacityLevelUpgradeRequirement;
     string[] private drillName;
     uint[] private mintPrice;
+    uint[] private maxLevel;
 
 
     struct Drill {
@@ -32,6 +33,18 @@ contract MineEmpireDrill is ERC721 {
 
     mapping(uint => Drill) public drillMap;
 
+    struct Promotion {
+        uint promoId;
+        uint drillType;
+        uint maxUnits;
+        uint unitsSold;
+        uint miningLevel;
+        uint capacityLevel;
+        uint mintPrice;
+    }
+
+    mapping(uint => Promotion) public promotions;
+
     constructor() ERC721("Mine Empire Drill", "DRILL") {
         owner = msg.sender;
     }
@@ -43,6 +56,9 @@ contract MineEmpireDrill is ERC721 {
     event LogMiningLevelUpgraded(uint _drillId);
     event LogCapacityLevelUpgraded(uint _drillId);
     event LogMint(uint _drillId);
+    event LogPromotionAdded(Promotion _promo);
+    event LogPromoMint(uint _drillId);
+
 
     // modifiers
 
@@ -52,7 +68,7 @@ contract MineEmpireDrill is ERC721 {
     }
 
     modifier mintAvailable() {
-        require (drillId < maxDrills, "mint not available");
+        require (drillId <= maxDrills, "mint not available");
         _;
     }
 
@@ -75,6 +91,7 @@ contract MineEmpireDrill is ERC721 {
         uint _drillType,
         string memory name,
         uint _mintPrice,
+        uint _maxLevel,
         uint[] memory miningPower,
         uint[] memory capacityAmount,
         uint[][] memory _miningLevelUpgradeRequirement,
@@ -86,6 +103,7 @@ contract MineEmpireDrill is ERC721 {
         }
         drillName.push(name);
         mintPrice.push(_mintPrice);
+        maxLevel.push(_maxLevel);
         miningMultiplier.push(miningPower);
         capacity.push(capacityAmount);
         miningLevelUpgradeRequirement.push(_miningLevelUpgradeRequirement);
@@ -105,6 +123,31 @@ contract MineEmpireDrill is ERC721 {
     function updateMintPrice(uint drillType, uint _price) public onlyOwner(msg.sender) {
         require(drillType < nextNewDrillType, "drill type doesn't exist");
         mintPrice[drillType] = _price;
+    }
+
+    function updateMaxDrillCount(uint _maxDrills) public onlyOwner(msg.sender) {
+        maxDrills = _maxDrills;
+    }
+
+    function createPromotion(
+        uint promoId, 
+        uint _drillType, 
+        uint _miningLeve, 
+        uint _capacityLevel, 
+        uint _maxUnits, 
+        uint _price
+        ) public onlyOwner(msg.sender) {
+        Promotion memory promo = Promotion(
+            promoId,
+            _drillType,
+            _maxUnits,
+            0,
+            _miningLeve,
+            _capacityLevel,
+            _price
+        );
+        promotions[promoId] = promo;
+        emit LogPromotionAdded(promo);
     }
 
     // getters
@@ -131,12 +174,14 @@ contract MineEmpireDrill is ERC721 {
 
     function getDrillMiningPower(uint _drillId) public view drillExists(_drillId) returns (uint) {
         uint drillType = drillMap[_drillId].drillType;
-        return miningMultiplier[drillType][_drillId];
+        uint curLevel = drillMap[_drillId].miningLevel;
+        return miningMultiplier[drillType][curLevel-1];
     }
 
     function getDrillCapacity(uint _drillId) public view drillExists(_drillId) returns (uint) {
         uint drillType = drillMap[_drillId].drillType;
-        return capacity[drillType][_drillId];
+        uint curLevel = drillMap[_drillId].capacityLevel;
+        return capacity[drillType][curLevel-1];
     }
 
     // user interactions
@@ -157,14 +202,35 @@ contract MineEmpireDrill is ERC721 {
         drillId++;
     }
 
+    function mintPromoDrill(uint _promoId) public payable {
+        Promotion memory promo = promotions[_promoId];
+        require(promo.maxUnits > 0, "promotion does not exist");
+        require(promo.unitsSold < promo.maxUnits, "no units available for this promotion");
+        require(msg.value == promo.mintPrice, "payment doesn't match promo mint price");
+        require(promo.drillType < nextNewDrillType, "drill type hasn't been configured");
+
+        Drill memory drill = Drill(
+            drillId,
+            drillName[promo.drillType],
+            promo.drillType,
+            promo.miningLevel,
+            promo.capacityLevel
+        );
+        drillMap[drillId] = drill;
+        _safeMint(msg.sender, drillId);
+        emit LogPromoMint(drillId);
+        drillId++;
+    }
+
     function upgradeMiningLevel(uint _drillId) public drillExists(_drillId) {
         require(super.ownerOf(_drillId) == msg.sender, "drill not owned");
         uint drillType = drillMap[_drillId].drillType;
         uint curLevel = drillMap[_drillId].miningLevel;
+        require(curLevel < maxLevel[drillType], "mining level at max");
 
         // get relevant resources
         for (uint i = 0; i < numberOfTrackedResources; i++) {
-            uint resourceAmount = miningLevelUpgradeRequirement[drillType][curLevel][i];
+            uint resourceAmount = miningLevelUpgradeRequirement[drillType][curLevel-1][i];
             if (resourceAmount > 0) {
                 resources[i].transferFrom(msg.sender, address(this), resourceAmount);
             }
@@ -177,10 +243,11 @@ contract MineEmpireDrill is ERC721 {
         require(super.ownerOf(_drillId) == msg.sender, "drill not owned");
         uint drillType = drillMap[_drillId].drillType;
         uint curLevel = drillMap[_drillId].capacityLevel;
+        require(curLevel < maxLevel[drillType], "mining level at max");
 
         // get relevant resources
         for (uint i = 0; i < numberOfTrackedResources; i++) {
-            uint resourceAmount = capacityLevelUpgradeRequirement[drillType][curLevel][i];
+            uint resourceAmount = capacityLevelUpgradeRequirement[drillType][curLevel-1][i];
             if (resourceAmount > 0) {
                 resources[i].transferFrom(msg.sender, address(this), resourceAmount);
             }

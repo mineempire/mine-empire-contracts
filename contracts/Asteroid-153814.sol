@@ -52,7 +52,6 @@ contract Asteroid153814 {
     // events
     event LogRefinement(uint _amountMinted);
     event LogRefinerUpgraded(uint _newLevel);
-
     // modifiers
     modifier onlyOwner(address _address) {
         require(_address == owner);
@@ -113,7 +112,7 @@ contract Asteroid153814 {
         if (capacity < amount) {
             amount = capacity;
         }
-        A153814Rock.transfer(msg.sender, amount);
+        A153814Rock.mint(msg.sender, amount);
         stakes[msg.sender].timestamp = block.timestamp;
     }
 

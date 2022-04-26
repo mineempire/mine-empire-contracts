@@ -1,18 +1,19 @@
 const MineEmpireDrill = artifacts.require("./MineEmpireDrill.sol")
-const A153814Rock = artifacts.require("./A153814Rock.sol")
+const Iron = artifacts.require("./Iron.sol")
 
 contract("MineEmpireDrill", accounts => {
     let mineEmpiredrill
-    let a153814;
+    let iron;
     let owner = accounts[0]
     let nonOwner = accounts[1]
     let acc2 = accounts[2]
+    let treasury = accounts[3]
     let tryCatch = require("./exceptions.js").tryCatch
     let errTypes = require("./exceptions.js").errTypes
     
     before(async () => {
         mineEmpiredrill = await MineEmpireDrill.deployed()
-        a153814 = await A153814Rock.deployed()
+        iron = await Iron.deployed()
     })
 
     it("should be deployed", async () => {
@@ -44,13 +45,23 @@ contract("MineEmpireDrill", accounts => {
         )
     })
 
+    it("should set treasury address", async () => {
+        await mineEmpiredrill.updateTreasuryAddress(treasury)
+    })
+
     it("should mint a drill", async () => {
+        let balance = await web3.eth.getBalance(treasury);
+        assert.equal(balance, web3.utils.toWei('100', 'ether'))
+
         await mineEmpiredrill.mintDrill({from: acc2, value: web3.utils.toWei('2', 'ether')})
         const drill = await mineEmpiredrill.getDrill(1)
         assert.equal(drill.name, "Basic Drill")
         assert.equal(drill.drillType, "0")
         assert.equal(drill.miningLevel, "1")
         assert.equal(drill.capacityLevel, "1")
+
+        balance = await web3.eth.getBalance(treasury);
+        assert.equal(balance, web3.utils.toWei('102', 'ether'))
     })
 
     it("should not mint due to max drills", async () => {
@@ -58,11 +69,11 @@ contract("MineEmpireDrill", accounts => {
     })
 
     it("should add new tracked resource", async () => {
-        await mineEmpiredrill.addNewTrackedResource(a153814.address)
+        await mineEmpiredrill.addNewTrackedResource(iron.address)
     })
 
     it("should mint resource to acc2", async () => {
-        await a153814.mint(acc2, "100000")
+        await iron.mint(acc2, "100000")
     })
 
     it("should not be able to upgrade mining power because drill doesn't exist", async () => {
@@ -78,8 +89,8 @@ contract("MineEmpireDrill", accounts => {
     })
 
     it("should upgrade mining power and capacity amount", async() => {
-        await a153814.approve(mineEmpiredrill.address, web3.utils.toWei('1', 'ether'), {from: acc2})
-        let balance = await a153814.balanceOf(acc2)
+        await iron.approve(mineEmpiredrill.address, web3.utils.toWei('1', 'ether'), {from: acc2})
+        let balance = await iron.balanceOf(acc2)
         assert.equal(balance, "100000")
         let drill = await mineEmpiredrill.getDrill(1)
         assert.equal(drill.miningLevel, "1")
@@ -87,14 +98,14 @@ contract("MineEmpireDrill", accounts => {
         let miningPower = await mineEmpiredrill.getDrillMiningPower(1)
         assert.equal(miningPower, "100")
         await mineEmpiredrill.upgradeMiningLevel(1, {from: acc2})
-        balance = await a153814.balanceOf(acc2)
+        balance = await iron.balanceOf(acc2)
         assert.equal(balance, "90000")
         drill = await mineEmpiredrill.getDrill(1)
         assert.equal(drill.miningLevel, "2")
         miningPower = await mineEmpiredrill.getDrillMiningPower(1)
         assert.equal(miningPower, "150")
         await mineEmpiredrill.upgradeMiningLevel(1, {from: acc2})
-        balance = await a153814.balanceOf(acc2)
+        balance = await iron.balanceOf(acc2)
         assert.equal(balance, "70000")
         drill = await mineEmpiredrill.getDrill(1)
         assert.equal(drill.miningLevel, "3")
@@ -103,12 +114,12 @@ contract("MineEmpireDrill", accounts => {
         await tryCatch(mineEmpiredrill.upgradeMiningLevel(1, {from: acc2}), errTypes.revert) // max level
 
         await mineEmpiredrill.upgradeCapacityLevel(1, {from: acc2})
-        balance = await a153814.balanceOf(acc2)
+        balance = await iron.balanceOf(acc2)
         assert.equal(balance, "60000")
         let capacityAmount = await mineEmpiredrill.getDrillCapacity(1)
         assert.equal(capacityAmount, "2000")
         await mineEmpiredrill.upgradeCapacityLevel(1, {from: acc2})
-        balance = await a153814.balanceOf(acc2)
+        balance = await iron.balanceOf(acc2)
         assert.equal(balance, "40000")
         capacityAmount = await mineEmpiredrill.getDrillCapacity(1)
         assert.equal(capacityAmount, "3000")

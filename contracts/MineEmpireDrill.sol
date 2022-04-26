@@ -7,6 +7,7 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 contract MineEmpireDrill is ERC721 {
     address public owner;
+    address payable public treasury;
     uint public currentMintDrill = 0;
     uint public drillId = 1;
     uint public maxDrills = 100;
@@ -87,6 +88,10 @@ contract MineEmpireDrill is ERC721 {
     }
 
     // owner only
+    function updateTreasuryAddress(address payable _address) public onlyOwner(msg.sender) {
+        treasury = _address;
+    }
+
     function addNewDrillType(
         uint _drillType,
         string memory name,
@@ -185,10 +190,10 @@ contract MineEmpireDrill is ERC721 {
     }
 
     // user interactions
-
     function mintDrill() public payable mintAvailable() {
         require(currentMintDrill < nextNewDrillType, "drill you are trying to mint is not created");
         require(msg.value == mintPrice[currentMintDrill], "pay amount doesn't match mint price");
+        require(treasury != address(0), "treasury address is not set");
         Drill memory drill = Drill(
             drillId,
             drillName[currentMintDrill],
@@ -197,6 +202,7 @@ contract MineEmpireDrill is ERC721 {
             1
         );
         drillMap[drillId] = drill;
+        treasury.transfer(msg.value);
         _safeMint(msg.sender, drillId);
         emit LogMint(drillId);
         drillId++;
@@ -217,6 +223,7 @@ contract MineEmpireDrill is ERC721 {
             promo.capacityLevel
         );
         drillMap[drillId] = drill;
+        treasury.transfer(msg.value);
         _safeMint(msg.sender, drillId);
         emit LogPromoMint(drillId);
         drillId++;
@@ -255,5 +262,4 @@ contract MineEmpireDrill is ERC721 {
         drillMap[_drillId].capacityLevel = curLevel + 1;
         emit LogCapacityLevelUpgraded(_drillId);
     }
-
 }

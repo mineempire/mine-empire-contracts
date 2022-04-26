@@ -10,10 +10,11 @@ import "@openzeppelin/contracts/token/ERC20/presets/ERC20PresetMinterPauser.sol"
 
 contract Asteroid153814 {
     MineEmpireDrill public drill;
-    ERC20PresetMinterPauser public A153814Rock;
+    ERC20PresetMinterPauser public iron;
     ERC20PresetMinterPauser public gold;
     address public owner;
     uint public baseProduction;
+    uint public capacityPerUnit;
     uint public refinerCapacity;
     uint[] private refinerEfficiency;
     uint[] private refinerUpgradeRequirement;
@@ -31,8 +32,9 @@ contract Asteroid153814 {
     constructor(ERC20PresetMinterPauser inputResource, ERC20PresetMinterPauser outputResource, MineEmpireDrill _drill) {
         owner = msg.sender;
         baseProduction = 1e16;
+        capacityPerUnit = 100;
         refinerCapacity = 1e22;
-        A153814Rock = inputResource;
+        iron = inputResource;
         gold = outputResource;
         drill = _drill;
         refinerEfficiency = [50, 55, 61, 67, 73, 80, 88, 100];
@@ -108,11 +110,11 @@ contract Asteroid153814 {
         uint miningMultiplier = drill.getDrillMiningPower(curStake.drill.drillId);
         uint capacity = drill.getDrillCapacity(curStake.drill.drillId);
         uint time = block.timestamp - curStake.timestamp;
-        uint amount = time * baseProduction / 100 * miningMultiplier;
+        uint amount = time * baseProduction / 100 * miningMultiplier / 100 * capacityPerUnit;
         if (capacity < amount) {
             amount = capacity;
         }
-        A153814Rock.mint(msg.sender, amount);
+        iron.mint(msg.sender, amount);
         stakes[msg.sender].timestamp = block.timestamp;
     }
 
@@ -124,7 +126,7 @@ contract Asteroid153814 {
         require(_amount <= refinerCapacity * timeSinceLastRefine / 864000, 
                 "amount to refine exceeds daily capacity");
 
-        A153814Rock.transferFrom(msg.sender, address(this), _amount);
+        iron.transferFrom(msg.sender, address(this), _amount);
         uint userRefinerLevel = refinerLevel[msg.sender];
         if (userRefinerLevel == 0) {
             refinerLevel[msg.sender] = 1;
@@ -143,7 +145,7 @@ contract Asteroid153814 {
         uint curLevel = refinerLevel[msg.sender];
         require(curLevel < maxRefinerLevel, "refiner at max level");
         uint requiredAmount = refinerUpgradeRequirement[curLevel - 1];
-        A153814Rock.transferFrom(msg.sender, address(this), requiredAmount);
+        iron.transferFrom(msg.sender, address(this), requiredAmount);
         refinerLevel[msg.sender] = curLevel + 1;
         emit LogRefinerUpgraded(curLevel + 1);
     }
@@ -159,7 +161,7 @@ contract Asteroid153814 {
         uint time = block.timestamp - curStake.timestamp;
         uint miningMultiplier = drill.getDrillMiningPower(curStake.drill.drillId);
         uint capacity = drill.getDrillCapacity(curStake.drill.drillId);
-        uint amount = time * baseProduction / 100 * miningMultiplier;
+        uint amount = time * baseProduction / 100 * miningMultiplier / 100 * capacityPerUnit;
         if (capacity < amount) {
             amount = capacity;
         }
@@ -168,6 +170,10 @@ contract Asteroid153814 {
 
     function getBaseProduction() public view returns (uint) {
         return baseProduction;
+    }
+
+    function getCapacityPerUnit() public view returns (uint) {
+        return capacityPerUnit;
     }
 
     function getRefinerCapacity() public view returns (uint) {

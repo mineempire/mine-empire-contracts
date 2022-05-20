@@ -3,7 +3,7 @@ const Iron = artifacts.require("./Iron.sol")
 
 contract("MineEmpireDrill", accounts => {
     let mineEmpiredrill
-    let iron;
+    let iron
     let owner = accounts[0]
     let nonOwner = accounts[1]
     let acc2 = accounts[2]

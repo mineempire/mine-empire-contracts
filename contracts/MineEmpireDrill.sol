@@ -8,258 +8,206 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 contract MineEmpireDrill is ERC721 {
     address public owner;
     address payable public treasury;
-    uint public currentMintDrill = 0;
-    uint public drillId = 1;
+    IERC20 public cosmicCash;
+    uint public nextDrillId = 1;
     uint public maxDrills = 100;
-
-    uint private nextNewDrillType = 0;
-    IERC20[] private resources;
-    uint private numberOfTrackedResources;
-    uint[][] private miningMultiplier;
-    uint[][] private capacity;
-    uint[][][] private miningLevelUpgradeRequirement;
-    uint[][][] private capacityLevelUpgradeRequirement;
-    string[] private drillName;
-    uint[] private mintPrice;
-    uint[] private maxLevel;
-
 
     struct Drill {
         uint drillId;
-        string name;
         uint drillType;
-        uint miningLevel;
-        uint capacityLevel;
+        uint level;
     }
 
-    mapping(uint => Drill) public drillMap;
-
-    struct Promotion {
-        uint promoId;
+    struct DrillTypeInfo {
         uint drillType;
-        uint maxUnits;
-        uint unitsSold;
-        uint miningLevel;
-        uint capacityLevel;
+        string drillName;
         uint mintPrice;
+        bool mintNativeCurrency;
+        address mintCurrencyAddress;
+        uint maxLevel;
+        mapping(uint => uint) miningPowerAtLevel;
+        mapping(uint => uint) upgradeRequirements;
     }
 
-    mapping(uint => Promotion) public promotions;
+    mapping(uint => Drill) public drillIdToDrillMap;
+    mapping(uint => DrillTypeInfo) public drillTypeToDrillStatsMap;
 
-    constructor() ERC721("Mine Empire Drill", "DRILL") {
+    constructor(IERC20 _cosmicCash) ERC721("Mine Empire Drill", "DRILL") {
         owner = msg.sender;
+        cosmicCash = _cosmicCash;
     }
 
-    // events
-
-    event LogNewDrillTypeAdded(uint _drillId);
-    event LogNewResourceTracked(address _address);
-    event LogMiningLevelUpgraded(uint _drillId);
-    event LogCapacityLevelUpgraded(uint _drillId);
+    // EVENTS
+    event LogDrillTypeAdded(uint _type);
     event LogMint(uint _drillId);
-    event LogPromotionAdded(Promotion _promo);
-    event LogPromoMint(uint _drillId);
+    event LogDrillUpgrade(uint _drillId);
 
-
-    // modifiers
-
+    // MODIFIERS
     modifier onlyOwner(address _address) {
         require(_address == owner, "not owner");
         _;
     }
 
     modifier mintAvailable() {
-        require (drillId <= maxDrills, "mint not available");
+        require (nextDrillId <= maxDrills, "mint not available");
         _;
     }
 
     modifier drillExists(uint _drillId) {
-        require(_drillId < drillId, "drill does not exist");
+        require(_drillId < nextDrillId, "drill does not exist");
         _;
     }
 
-    modifier correctMintPrice(uint256 _amount) {
-        require(_amount == mintPrice[currentMintDrill], "mint price is not correct");
+    modifier drillTypeExists(uint _drillType) {
+        require(drillTypeToDrillStatsMap[_drillType].maxLevel > 0, "drill type does not exist");
         _;
     }
 
-    function getResourceAtIndex(uint idx) public view returns (IERC20) {
-        return resources[idx];
+    modifier drillTypeNotExists(uint _drillType) {
+        require(drillTypeToDrillStatsMap[_drillType].maxLevel == 0, "drill type already exists");
+        _;
     }
 
-    // owner only
+    modifier drillTypeLevelWithinBounds(uint _type, uint _level) {
+        require(_level < drillTypeToDrillStatsMap[_type].maxLevel, "level is greater than max level for given drill type");
+        require(_level >= 0, "level is negative");
+        _;
+    }
+
+    modifier correctMintPrice(uint _drillType, uint _mintPrice) {
+        require(drillTypeToDrillStatsMap[_drillType].mintPrice == _mintPrice, "incorrect mint price");
+        _;
+    }
+
+    // ONLY OWNER
+    
+    // update treasury address
     function updateTreasuryAddress(address payable _address) public onlyOwner(msg.sender) {
         treasury = _address;
     }
 
+    // add new drill type
     function addNewDrillType(
-        uint _drillType,
-        string memory name,
+        uint _type,
+        string memory _name,
         uint _mintPrice,
+        bool _nativeCurrency,
+        address _mintCurrencyAddress,
         uint _maxLevel,
-        uint[] memory miningPower,
-        uint[] memory capacityAmount,
-        uint[][] memory _miningLevelUpgradeRequirement,
-        uint[][] memory _capacityLevelUpgradeRequirement
-    ) public onlyOwner(msg.sender) {
-        require(_drillType <= nextNewDrillType, "drillType must be <= nextNewDrillType");
-        if (_drillType != nextNewDrillType) {
-            require(mintPrice[_drillType] == 0, "drillType already created, delete before replacing");
+        uint[] memory _miningPowerAtLevel,
+        uint[] memory _upgradeRequirements
+    ) public onlyOwner(msg.sender) drillTypeNotExists(_type) {
+        drillTypeToDrillStatsMap[_type].drillType = _type;
+        drillTypeToDrillStatsMap[_type].drillName = _name;
+        drillTypeToDrillStatsMap[_type].mintPrice = _mintPrice;
+        drillTypeToDrillStatsMap[_type].mintNativeCurrency = _nativeCurrency;
+        drillTypeToDrillStatsMap[_type].mintCurrencyAddress = _mintCurrencyAddress;
+        drillTypeToDrillStatsMap[_type].maxLevel = _maxLevel;
+        for (uint i = 0; i < _maxLevel; i++) {
+            drillTypeToDrillStatsMap[_type].miningPowerAtLevel[i] = _miningPowerAtLevel[i];
+            drillTypeToDrillStatsMap[_type].upgradeRequirements[i] = _upgradeRequirements[i];
+
         }
-        drillName.push(name);
-        mintPrice.push(_mintPrice);
-        maxLevel.push(_maxLevel);
-        miningMultiplier.push(miningPower);
-        capacity.push(capacityAmount);
-        miningLevelUpgradeRequirement.push(_miningLevelUpgradeRequirement);
-        capacityLevelUpgradeRequirement.push(_capacityLevelUpgradeRequirement);
-        emit LogNewDrillTypeAdded(nextNewDrillType);
-        nextNewDrillType++;
+        emit LogDrillTypeAdded(_type);
     }
 
-    function addNewTrackedResource(
-        IERC20 resource
-    ) public onlyOwner(msg.sender) {
-        resources.push(resource);
-        emit LogNewResourceTracked(address(resource));
-        numberOfTrackedResources++;
+    // update mint price
+    function updateMintPrice(
+        uint _type, 
+        uint _mintPrice
+    ) public onlyOwner(msg.sender) drillTypeExists(_type) {
+        drillTypeToDrillStatsMap[_type].mintPrice = _mintPrice;
     }
 
-    function updateMintPrice(uint drillType, uint _price) public onlyOwner(msg.sender) {
-        require(drillType < nextNewDrillType, "drill type doesn't exist");
-        mintPrice[drillType] = _price;
-    }
-
+    // update max drills
     function updateMaxDrillCount(uint _maxDrills) public onlyOwner(msg.sender) {
         maxDrills = _maxDrills;
     }
 
-    function createPromotion(
-        uint promoId, 
-        uint _drillType, 
-        uint _miningLeve, 
-        uint _capacityLevel, 
-        uint _maxUnits, 
-        uint _price
-        ) public onlyOwner(msg.sender) {
-        Promotion memory promo = Promotion(
-            promoId,
-            _drillType,
-            _maxUnits,
-            0,
-            _miningLeve,
-            _capacityLevel,
-            _price
-        );
-        promotions[promoId] = promo;
-        emit LogPromotionAdded(promo);
+    // update mining power
+    function updateMiningPower(
+        uint _type, 
+        uint _level, 
+        uint _power
+    ) public onlyOwner(msg.sender) drillTypeExists(_type) drillTypeLevelWithinBounds(_type, _level) {
+        drillTypeToDrillStatsMap[_type].miningPowerAtLevel[_level] = _power;
     }
 
-    // getters
-    function getDrill(uint256 _drillId) public view returns (Drill memory) {
-        return drillMap[_drillId];
+    // update max level
+    function updateMaxLevel(
+        uint _type,
+        uint _maxLevel
+    ) public onlyOwner(msg.sender) drillTypeExists(_type) {
+        drillTypeToDrillStatsMap[_type].maxLevel = _maxLevel;
     }
 
-    function getMintPrice(uint drillType) public view returns(uint) {
-        require(drillType < nextNewDrillType, "drill type doesn't exist");
-        return mintPrice[drillType];
+    //update upgrade requirement
+    function updateUpgradeRequirement(
+        uint _type,
+        uint _level,
+        uint _upgradeRequirement
+    ) public onlyOwner(msg.sender) drillTypeExists(_type) drillTypeLevelWithinBounds(_type, _level) {
+        drillTypeToDrillStatsMap[_type].upgradeRequirements[_level] = _upgradeRequirement;
     }
 
-    function getMiningLevelUpgradeRequirements(uint _drillId) public view drillExists(_drillId) returns(uint[] memory) {
-        uint drillType = drillMap[_drillId].drillType;
-        uint curLevel = drillMap[_drillId].miningLevel;
-        return miningLevelUpgradeRequirement[drillType][curLevel];
+    // GETTERS
+
+    // get drill
+    function getDrill(uint _drillId) public view drillExists(_drillId) returns(Drill memory) {
+        return drillIdToDrillMap[_drillId];
+    }
+    
+    // get mint price and currency
+    function getMintPrice(uint _type) public view drillTypeExists(_type) returns(uint) {
+        return drillTypeToDrillStatsMap[_type].mintPrice;
     }
 
-    function getCapacityLevelUpgradeRequirements(uint _drillId) public view drillExists(_drillId) returns(uint[] memory) {
-        uint drillType = drillMap[_drillId].drillType;
-        uint curLevel = drillMap[_drillId].capacityLevel;
-        return capacityLevelUpgradeRequirement[drillType][curLevel];
+    function getMintCurrency(uint _type) public view drillTypeExists(_type) returns(address) {
+        return drillTypeToDrillStatsMap[_type].mintCurrencyAddress;
     }
 
-    function getDrillMiningPower(uint _drillId) public view drillExists(_drillId) returns (uint) {
-        uint drillType = drillMap[_drillId].drillType;
-        uint curLevel = drillMap[_drillId].miningLevel;
-        return miningMultiplier[drillType][curLevel-1];
+    // get mining level upgrade requirement
+    function getUpgradeRequirement(
+        uint _type,
+        uint _level
+    ) public view drillTypeExists(_type) drillTypeLevelWithinBounds(_type, _level) returns(uint) {
+        return drillTypeToDrillStatsMap[_type].upgradeRequirements[_level];
+    }
+    // get mining power
+    function getMiningPower(uint _drillId) public view drillExists(_drillId) returns(uint) {
+        Drill memory drill = drillIdToDrillMap[_drillId];
+        return drillTypeToDrillStatsMap[drill.drillType].miningPowerAtLevel[drill.level];
     }
 
-    function getDrillCapacity(uint _drillId) public view drillExists(_drillId) returns (uint) {
-        uint drillType = drillMap[_drillId].drillType;
-        uint curLevel = drillMap[_drillId].capacityLevel;
-        return capacity[drillType][curLevel-1];
-    }
+    // USER INTERACTIONS
 
-    // user interactions
-    function mintDrill() public payable mintAvailable() {
-        require(currentMintDrill < nextNewDrillType, "drill you are trying to mint is not created");
-        require(msg.value == mintPrice[currentMintDrill], "pay amount doesn't match mint price");
+    // mint drill
+    function mintDrill(uint _type) public payable mintAvailable() correctMintPrice(_type, msg.value) {
         require(treasury != address(0), "treasury address is not set");
         Drill memory drill = Drill(
-            drillId,
-            drillName[currentMintDrill],
-            currentMintDrill,
-            1,
-            1
+            nextDrillId,
+            _type,
+            0
         );
-        drillMap[drillId] = drill;
+        drillIdToDrillMap[nextDrillId] = drill;
         treasury.transfer(msg.value);
-        _safeMint(msg.sender, drillId);
-        emit LogMint(drillId);
-        drillId++;
+        _safeMint(msg.sender, nextDrillId);
+        emit LogMint(nextDrillId);
+        nextDrillId++;
     }
 
-    function mintPromoDrill(uint _promoId) public payable {
-        Promotion memory promo = promotions[_promoId];
-        require(promo.maxUnits > 0, "promotion does not exist");
-        require(promo.unitsSold < promo.maxUnits, "no units available for this promotion");
-        require(msg.value == promo.mintPrice, "payment doesn't match promo mint price");
-        require(promo.drillType < nextNewDrillType, "drill type hasn't been configured");
-
-        Drill memory drill = Drill(
-            drillId,
-            drillName[promo.drillType],
-            promo.drillType,
-            promo.miningLevel,
-            promo.capacityLevel
-        );
-        drillMap[drillId] = drill;
-        treasury.transfer(msg.value);
-        _safeMint(msg.sender, drillId);
-        emit LogPromoMint(drillId);
-        drillId++;
-    }
-
-    function upgradeMiningLevel(uint _drillId) public drillExists(_drillId) {
+    // upgrade drill
+    function upgradeDrill(uint _drillId) public drillExists(_drillId) {
         require(super.ownerOf(_drillId) == msg.sender, "drill not owned");
-        uint drillType = drillMap[_drillId].drillType;
-        uint curLevel = drillMap[_drillId].miningLevel;
-        require(curLevel < maxLevel[drillType], "mining level at max");
+        Drill memory drill = drillIdToDrillMap[_drillId];
+        DrillTypeInfo storage drillInfo = drillTypeToDrillStatsMap[drill.drillType];
+        require(drill.level < drillInfo.maxLevel, "drill at max level");
 
-        // get relevant resources
-        for (uint i = 0; i < numberOfTrackedResources; i++) {
-            uint resourceAmount = miningLevelUpgradeRequirement[drillType][curLevel-1][i];
-            if (resourceAmount > 0) {
-                resources[i].transferFrom(msg.sender, address(this), resourceAmount);
-            }
-        }
-        drillMap[_drillId].miningLevel = curLevel + 1;
-        emit LogMiningLevelUpgraded(_drillId);
-    }
-
-    function upgradeCapacityLevel(uint _drillId) public drillExists(_drillId) {
-        require(super.ownerOf(_drillId) == msg.sender, "drill not owned");
-        uint drillType = drillMap[_drillId].drillType;
-        uint curLevel = drillMap[_drillId].capacityLevel;
-        require(curLevel < maxLevel[drillType], "mining level at max");
-
-        // get relevant resources
-        for (uint i = 0; i < numberOfTrackedResources; i++) {
-            uint resourceAmount = capacityLevelUpgradeRequirement[drillType][curLevel-1][i];
-            if (resourceAmount > 0) {
-                resources[i].transferFrom(msg.sender, address(this), resourceAmount);
-            }
-        }
-        drillMap[_drillId].capacityLevel = curLevel + 1;
-        emit LogCapacityLevelUpgraded(_drillId);
+        // get resource
+        uint amountForUpgrade = drillInfo.upgradeRequirements[drill.level + 1];
+        require(amountForUpgrade > 0, "amount for upgrade not greater than zero");
+        cosmicCash.transferFrom(msg.sender, treasury, amountForUpgrade);
+        drillIdToDrillMap[_drillId].level = drill.level + 1;
+        emit LogDrillUpgrade(_drillId);
     }
 }

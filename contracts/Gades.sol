@@ -1,5 +1,4 @@
 // SPDX-License-Identifier: MIT
-// Asteroid info: https://theskylive.com/153814-info
 
 pragma solidity ^0.8.0;
 
@@ -8,16 +7,16 @@ import "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/presets/ERC20PresetMinterPauser.sol";
 
-contract Asteroid153814 {
-    MineEmpireDrill public drill;
+contract Gades {
+    MineEmpireDrill public mineEmpireDrill;
     ERC20PresetMinterPauser public iron;
     ERC20PresetMinterPauser public cosmicCash;
     address public owner;
     address payable treasury;
     uint public baseProduction;
     struct Stake {
-        MineEmpireDrill.Drill drill;
         uint timestamp;
+        MineEmpireDrill.Drill drill;
     }
 
     uint maxLevel;
@@ -31,7 +30,7 @@ contract Asteroid153814 {
         baseProduction = 289351851900000;
         iron = _iron;
         cosmicCash = _cosmicCash;
-        drill = _drill;
+        mineEmpireDrill = _drill;
         maxLevel = 9;
         capacityAtLevel[0] = 175e18;
         capacityAtLevel[1] = 185e18;
@@ -138,11 +137,11 @@ contract Asteroid153814 {
 
     // get accumulated iron
     function getAccumulatedIron(address _userAddress) public view drillStaked(_userAddress) returns(uint) {
-        Stake memory curStake = stakes[msg.sender];
+        Stake memory curStake = stakes[_userAddress];
         uint time = block.timestamp - curStake.timestamp;
-        uint miningPower = drill.getMiningPower(curStake.drill.drillId);
+        uint miningPower = mineEmpireDrill.getMiningPower(curStake.drill.drillId);
         uint capacity = capacityAtLevel[userLevel[_userAddress]];
-        uint amount = time * baseProduction / 100 * miningPower / 100;
+        uint amount = time * baseProduction / 100 * miningPower;
         if (capacity < amount) {
             amount = capacity;
         }
@@ -153,8 +152,11 @@ contract Asteroid153814 {
 
     // stake
     function stake(uint _drillId) public drillNotStaked(msg.sender) {
-        drill.safeTransferFrom(msg.sender, address(this), _drillId);
-        stakes[msg.sender] = Stake(drill.getDrill(_drillId), block.timestamp);
+        mineEmpireDrill.safeTransferFrom(msg.sender, address(this), _drillId);
+        MineEmpireDrill.Drill memory drill = mineEmpireDrill.getDrill(_drillId);
+        stakes[msg.sender] = Stake(
+            block.timestamp,
+            drill);
     }
 
     // collect
@@ -167,8 +169,8 @@ contract Asteroid153814 {
     // unstake and collect
     function unstake() public drillStaked(msg.sender) {
         uint amount = getAccumulatedIron(msg.sender);
-        iron.mint(msg.sender, amount);
-        drill.safeTransferFrom(address(this), msg.sender, stakes[msg.sender].drill.drillId);
+        iron.transfer(msg.sender, amount);
+        mineEmpireDrill.safeTransferFrom(address(this), msg.sender, stakes[msg.sender].drill.drillId);
         delete stakes[msg.sender];
     }
 

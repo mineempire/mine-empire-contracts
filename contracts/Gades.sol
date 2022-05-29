@@ -63,6 +63,7 @@ contract Gades {
     }
 
     // EVENTS
+    event CapacityUpgraded(address userAddress, uint userLevel);
 
     // MODIFIERS
     modifier onlyOwner(address _address) {
@@ -175,6 +176,15 @@ contract Gades {
     }
 
     // upgrade
+    function upgrade() public {
+        uint curLevel = userLevel[msg.sender];
+        require(curLevel < 9, "level at max");
+        uint upgradeAmt = upgradeRequirementAtLevel[curLevel + 1];
+        cosmicCash.transferFrom(msg.sender, treasury, upgradeAmt);
+        userLevel[msg.sender] = curLevel + 1;
+        emit CapacityUpgraded(msg.sender, userLevel[msg.sender]);
+        return;
+    }
     
 
 }

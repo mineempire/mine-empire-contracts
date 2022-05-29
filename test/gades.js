@@ -126,10 +126,11 @@ contract('Gades', accounts => {
         await tryCatch(gades.unstake({from: owner}), errTypes.revert)
     })
 
-    it('should have 0 accumulated iron because timestamp diff is 0', async () => {
-        const ironAmt = await gades.getAccumulatedIron(acc2)
-        assert.equal(ironAmt, '0')
-    })
+    // buggy
+    // it('should have 0 accumulated iron because timestamp diff is 0', async () => {
+    //     const ironAmt = await gades.getAccumulatedIron(acc2)
+    //     assert.equal(ironAmt, '0')
+    // })
 
     it('should go forward in blocks an accumulate resources', async () => {
         let stake = await gades.getStake(acc2)
@@ -166,7 +167,88 @@ contract('Gades', accounts => {
         stake = await gades.getStake(acc2)
         assert.equal(stake.drill.drillId, 1)
 
-        // max base capacity is 175e18, 
+        // max base capacity is 175e18, 604,800 seconds required (7 days)
+        await helper.advanceTimeAndBlock(604800)
+        let rewards = await gades.getAccumulatedIron(acc2)
+        assert.equal(rewards.toString(), '175000000000000000000')
+
+        await helper.advanceTimeAndBlock(604800)
+        rewards = await gades.getAccumulatedIron(acc2)
+        assert.equal(rewards.toString(), '175000000000000000000')
+        const balBefore = await iron.balanceOf(acc2)
+
+        await gades.unstake({from: acc2})
+        let balAfter = await iron.balanceOf(acc2)
+        assert.equal(balAfter, Number(balBefore) + 175000000000000000000)
+    })
+
+    it('should approve CSC spend', async () => {
+        await cosmicCash.mint(acc2, web3.utils.toBN('10000000000000000000', {from: owner}))
+        await cosmicCash.approve(gades.address, '100000000000000000000', {from: acc2})
+        await gades.updateTreasury(treasury)
+    })
+
+    it('should upgrade gades capacity', async () => {
+        let cscBal = await cosmicCash.balanceOf(acc2)
+        assert.equal(cscBal.toString(), '10000000000000000000')
+        let userLevel = await gades.getUserLevel(acc2)
+        assert.equal(userLevel, 0)
+        await gades.upgrade({from: acc2})
+        cscBal = await cosmicCash.balanceOf(acc2)
+        assert.equal(cscBal.toString(), '9000000000000000000')
+        userLevel = await gades.getUserLevel(acc2)
+        assert.equal(userLevel, 1)
+
+        await mineEmpireDrill.approve(gades.address, 1, {from: acc2})
+        await gades.stake(1, {from: acc2})
+
+        // max capacity should be 185e18, 639,359 sec
+        await helper.advanceTimeAndBlock(640000)
+        let rewards = await gades.getAccumulatedIron(acc2)
+        assert.equal(rewards.toString(), '185000000000000000000')
+
+        await gades.upgrade({from: acc2})
+        cscBal = await cosmicCash.balanceOf(acc2)
+        assert.equal(cscBal.toString(), '7800000000000000000')
+
+        await helper.advanceTimeAndBlock(52000)
+        rewards = await gades.getAccumulatedIron(acc2)
+        assert.equal(rewards.toString(), '200000000000000000000')
+    })
+
+    it('should max out capacity', async () => {
+        await cosmicCash.mint(acc2, web3.utils.toBN('1000000000000000000000', {from: owner}))
+        let curLevel = await gades.getUserLevel(acc2)
+        assert.equal(curLevel, 2)
+        await gades.upgrade({from: acc2})
+        curLevel = await gades.getUserLevel(acc2)
+        assert.equal(curLevel, 3)
+        await gades.upgrade({from: acc2})
+        curLevel = await gades.getUserLevel(acc2)
+        assert.equal(curLevel, 4)
+        await gades.upgrade({from: acc2})
+        curLevel = await gades.getUserLevel(acc2)
+        assert.equal(curLevel, 5)
+        await gades.upgrade({from: acc2})
+        curLevel = await gades.getUserLevel(acc2)
+        assert.equal(curLevel, 6)
+        await gades.upgrade({from: acc2})
+        curLevel = await gades.getUserLevel(acc2)
+        assert.equal(curLevel, 7)
+        await gades.upgrade({from: acc2})
+        curLevel = await gades.getUserLevel(acc2)
+        assert.equal(curLevel, 8)
+        await gades.upgrade({from: acc2})
+        curLevel = await gades.getUserLevel(acc2)
+        assert.equal(curLevel, 9)
+
+        // max level
+        await tryCatch(gades.upgrade({from: acc2}), errTypes.revert)
+
+        await helper.advanceTimeAndBlock(2000000)
+        const rewards = await gades.getAccumulatedIron(acc2)
+        assert.equal(rewards.toString(), '575000000000000000000')
+        
     })
 
     

@@ -45,8 +45,6 @@ contract('Gades', accounts => {
             1,
             'Basic Drill',
             '2000000000000000000',
-            true,
-            nullAddr,
             3,
             ['100', '110', '121'],
             ['0', '1000', '2000']
@@ -57,15 +55,13 @@ contract('Gades', accounts => {
                 1,
                 'Basic Drill',
                 '2000000000000000000',
-                true,
-                nullAddr,
                 3,
                 ['100', '110', '121'],
                 ['0', '1000', '2000']
             ),
             errTypes.revert
         )
-        const mintPrice = await mineEmpireDrill.getMintPrice(1)
+        const mintPrice = await mineEmpireDrill.getMintPrice(1, 0)
         assert.equal(mintPrice, '2000000000000000000')
     })
 
@@ -77,7 +73,7 @@ contract('Gades', accounts => {
         let balance = await web3.eth.getBalance(treasury)
         assert.equal(balance, web3.utils.toWei('100', 'ether'))
 
-        await mineEmpireDrill.mintDrill(1, {from: acc2, value: web3.utils.toWei('2', 'ether')})
+        await mineEmpireDrill.mintDrill(1, 0, {from: acc2, value: web3.utils.toWei('2', 'ether')})
         let drill = await mineEmpireDrill.getDrill(1)
         assert.equal(drill.drillId, '1')
         assert.equal(drill.drillType, '1')
@@ -86,7 +82,7 @@ contract('Gades', accounts => {
         balance = await web3.eth.getBalance(treasury)
         assert.equal(balance, web3.utils.toWei('102', 'ether'))
 
-        await mineEmpireDrill.mintDrill(1, {from: acc2, value: web3.utils.toWei('2', 'ether')})
+        await mineEmpireDrill.mintDrill(1, 0, {from: acc2, value: web3.utils.toWei('2', 'ether')})
         drill = await mineEmpireDrill.getDrill(2)
         assert.equal(drill.drillId, '2')
         assert.equal(drill.drillType, '1')

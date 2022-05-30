@@ -10,7 +10,6 @@ contract MineEmpireDrill is ERC721 {
     address payable public treasury;
     IERC20 public cosmicCash;
     uint public nextDrillId = 1;
-    uint public maxDrills = 100;
 
     struct Drill {
         uint drillId;
@@ -21,9 +20,6 @@ contract MineEmpireDrill is ERC721 {
     struct DrillTypeInfo {
         uint drillType;
         string drillName;
-        uint mintPrice;
-        bool mintNativeCurrency;
-        address mintCurrencyAddress;
         uint maxLevel;
         mapping(uint => uint) miningPowerAtLevel;
         mapping(uint => uint) upgradeRequirements;
@@ -31,10 +27,15 @@ contract MineEmpireDrill is ERC721 {
 
     mapping(uint => Drill) public drillIdToDrillMap;
     mapping(uint => DrillTypeInfo) public drillTypeToDrillStatsMap;
+    // type -> level -> available
+    mapping(uint => mapping(uint => uint)) public drillsAvailableAtLevel;
+    mapping(uint => mapping(uint => uint)) public drillsMintedAtLevel;
+    mapping(uint => mapping(uint => uint)) public drillPriceAtLevel;
 
     constructor(IERC20 _cosmicCash) ERC721("Mine Empire Drill", "DRILL") {
         owner = msg.sender;
         cosmicCash = _cosmicCash;
+        drillsAvailableAtLevel[1][0] = 100;
     }
 
     // EVENTS
@@ -48,8 +49,8 @@ contract MineEmpireDrill is ERC721 {
         _;
     }
 
-    modifier mintAvailable() {
-        require (nextDrillId <= maxDrills, "mint not available");
+    modifier mintAvailable(uint _type, uint _level) {
+        require (drillsMintedAtLevel[_type][_level] < drillsAvailableAtLevel[_type][_level], "mint not available");
         _;
     }
 
@@ -74,8 +75,8 @@ contract MineEmpireDrill is ERC721 {
         _;
     }
 
-    modifier correctMintPrice(uint _drillType, uint _mintPrice) {
-        require(drillTypeToDrillStatsMap[_drillType].mintPrice == _mintPrice, "incorrect mint price");
+    modifier correctMintPrice(uint _type, uint _level, uint _mintPrice) {
+        require(drillPriceAtLevel[_type][_level] == _mintPrice, "incorrect mint price");
         _;
     }
 
@@ -91,17 +92,13 @@ contract MineEmpireDrill is ERC721 {
         uint _type,
         string memory _name,
         uint _mintPrice,
-        bool _nativeCurrency,
-        address _mintCurrencyAddress,
         uint _maxLevel,
         uint[] memory _miningPowerAtLevel,
         uint[] memory _upgradeRequirements
     ) public onlyOwner(msg.sender) drillTypeNotExists(_type) {
         drillTypeToDrillStatsMap[_type].drillType = _type;
         drillTypeToDrillStatsMap[_type].drillName = _name;
-        drillTypeToDrillStatsMap[_type].mintPrice = _mintPrice;
-        drillTypeToDrillStatsMap[_type].mintNativeCurrency = _nativeCurrency;
-        drillTypeToDrillStatsMap[_type].mintCurrencyAddress = _mintCurrencyAddress;
+        drillPriceAtLevel[_type][0] = _mintPrice;
         drillTypeToDrillStatsMap[_type].maxLevel = _maxLevel;
         for (uint i = 0; i < _maxLevel; i++) {
             drillTypeToDrillStatsMap[_type].miningPowerAtLevel[i] = _miningPowerAtLevel[i];
@@ -113,15 +110,16 @@ contract MineEmpireDrill is ERC721 {
 
     // update mint price
     function updateMintPrice(
-        uint _type, 
+        uint _type,
+        uint _level,
         uint _mintPrice
     ) public onlyOwner(msg.sender) drillTypeExists(_type) {
-        drillTypeToDrillStatsMap[_type].mintPrice = _mintPrice;
+        drillPriceAtLevel[_type][_level] = _mintPrice;
     }
 
     // update max drills
-    function updateMaxDrillCount(uint _maxDrills) public onlyOwner(msg.sender) {
-        maxDrills = _maxDrills;
+    function updateDrillsAvailable(uint _type, uint _level, uint _count) public onlyOwner(msg.sender) {
+        drillsAvailableAtLevel[_type][_level] = _count;
     }
 
     // update mining power
@@ -158,12 +156,8 @@ contract MineEmpireDrill is ERC721 {
     }
     
     // get mint price and currency
-    function getMintPrice(uint _type) public view drillTypeExists(_type) returns(uint) {
-        return drillTypeToDrillStatsMap[_type].mintPrice;
-    }
-
-    function getMintCurrency(uint _type) public view drillTypeExists(_type) returns(address) {
-        return drillTypeToDrillStatsMap[_type].mintCurrencyAddress;
+    function getMintPrice(uint _type, uint _level) public view drillTypeExists(_type) returns(uint) {
+        return drillPriceAtLevel[_type][_level];
     }
 
     // get mining level upgrade requirement
@@ -179,18 +173,25 @@ contract MineEmpireDrill is ERC721 {
         return drillTypeToDrillStatsMap[drill.drillType].miningPowerAtLevel[drill.level];
     }
 
+    function getDrillsAvailableAtLevel(uint _type, uint _level) public view returns(uint) {
+        return drillsAvailableAtLevel[_type][_level];
+    }
+
     // USER INTERACTIONS
 
     // mint drill
-    function mintDrill(uint _type) public payable mintAvailable() correctMintPrice(_type, msg.value) {
+    function mintDrill(uint _type, uint _level) public payable 
+    mintAvailable(_type, _level) 
+    correctMintPrice(_type, _level, msg.value) {
         require(treasury != address(0), "treasury address is not set");
+        treasury.transfer(msg.value);
         Drill memory drill = Drill(
             nextDrillId,
             _type,
-            0
+            _level
         );
         drillIdToDrillMap[nextDrillId] = drill;
-        treasury.transfer(msg.value);
+        drillsMintedAtLevel[_type][_level]++;
         _safeMint(msg.sender, nextDrillId);
         emit LogMint(nextDrillId);
         nextDrillId++;

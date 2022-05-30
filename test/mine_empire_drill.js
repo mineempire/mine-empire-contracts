@@ -23,8 +23,13 @@ contract('MineEmpireDrill', accounts => {
     })
 
     it('should not update maxDrills, not owner', async () => {
-        await tryCatch(mineEmpireDrill.updateMaxDrillCount(1, {from: nonOwner}), errTypes.revert)
-        await mineEmpireDrill.updateMaxDrillCount(1, {from: owner})
+        let drillsAvailable = await mineEmpireDrill.getDrillsAvailableAtLevel(1, 0)
+        assert.equal(drillsAvailable, 100)
+        await tryCatch(mineEmpireDrill.updateDrillsAvailable(1, 0, 1, {from: nonOwner}), errTypes.revert)
+        await mineEmpireDrill.updateDrillsAvailable(1, 0, 1, {from: owner})
+
+        drillsAvailable = await mineEmpireDrill.getDrillsAvailableAtLevel(1, 0)
+        assert.equal(drillsAvailable, 1)
     })
 
     it('should add a new drill type', async () => {
@@ -41,8 +46,6 @@ contract('MineEmpireDrill', accounts => {
             1,
             'Basic Drill',
             '2000000000000000000',
-            true,
-            nullAddr,
             3,
             ['100', '110', '121'],
             ['0', '1000', '2000']
@@ -53,21 +56,19 @@ contract('MineEmpireDrill', accounts => {
                 1,
                 'Basic Drill',
                 '2000000000000000000',
-                true,
-                nullAddr,
                 3,
                 ['100', '110', '121'],
                 ['0', '1000', '2000']
             ),
             errTypes.revert
         )
-        const mintPrice = await mineEmpireDrill.getMintPrice(1)
+        const mintPrice = await mineEmpireDrill.getMintPrice(1, 0)
         assert.equal(mintPrice, '2000000000000000000')
     })
 
     it('should update mint price', async () => {
-        await mineEmpireDrill.updateMintPrice(1, '3000000000000000000')
-        const mintPrice = await mineEmpireDrill.getMintPrice(1)
+        await mineEmpireDrill.updateMintPrice(1, 0, '3000000000000000000')
+        const mintPrice = await mineEmpireDrill.getMintPrice(1, 0)
         assert.equal(mintPrice, '3000000000000000000')
     })
 
@@ -89,7 +90,7 @@ contract('MineEmpireDrill', accounts => {
         let balance = await web3.eth.getBalance(treasury)
         assert.equal(balance, web3.utils.toWei('100', 'ether'))
 
-        await mineEmpireDrill.mintDrill(1, {from: acc2, value: web3.utils.toWei('3', 'ether')})
+        await mineEmpireDrill.mintDrill(1, 0, {from: acc2, value: web3.utils.toWei('3', 'ether')})
         const drill = await mineEmpireDrill.getDrill(1)
         assert.equal(drill.drillId, '1')
         assert.equal(drill.drillType, '1')
@@ -100,7 +101,35 @@ contract('MineEmpireDrill', accounts => {
     })
 
     it('should not mint because max drills', async () => {
-        await tryCatch(mineEmpireDrill.mintDrill(1, {from: acc2, value: web3.utils.toWei('3', 'ether')}), errTypes.revert)
+        await tryCatch(mineEmpireDrill.mintDrill(1, 0, {from: acc2, value: web3.utils.toWei('3', 'ether')}), errTypes.revert)
+    })
+
+    it('should mint a lv5 drill', async () => {
+        let drillsAvailable = await mineEmpireDrill.getDrillsAvailableAtLevel(1, 5)
+        assert.equal(drillsAvailable, 0)
+        let mintPrice = await mineEmpireDrill.getMintPrice(1, 5)
+        assert.equal(mintPrice, 0)
+
+        await mineEmpireDrill.updateMintPrice(1, 5, web3.utils.toWei('9', 'ether'))
+        await mineEmpireDrill.updateDrillsAvailable(1, 5, 1)
+        drillsAvailable = await mineEmpireDrill.getDrillsAvailableAtLevel(1, 5)
+        assert.equal(drillsAvailable, 1)
+        mintPrice = await mineEmpireDrill.getMintPrice(1, 5)
+        assert.equal(mintPrice, '9000000000000000000')
+
+        let balance = await web3.eth.getBalance(treasury)
+        assert.equal(balance, web3.utils.toWei('103', 'ether'))
+
+        await mineEmpireDrill.mintDrill(1, 5, {from: acc2, value: web3.utils.toWei('9', 'ether')})
+        const drill = await mineEmpireDrill.getDrill(2)
+        assert.equal(drill.drillId, '2')
+        assert.equal(drill.drillType, '1')
+        assert.equal(drill.level, '5')
+
+        balance = await web3.eth.getBalance(treasury)
+        assert.equal(balance, web3.utils.toWei('112', 'ether'))
+
+        await tryCatch(mineEmpireDrill.mintDrill(1, 5, {from: acc2, value: web3.utils.toWei('9', 'ether')}), errTypes.revert)
     })
 
     it('should mint cosmic cash to acc2', async () => {

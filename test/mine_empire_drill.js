@@ -8,6 +8,7 @@ contract('MineEmpireDrill', accounts => {
     let nonOwner = accounts[1]
     let acc2 = accounts[2]
     let treasury = accounts[3]
+    let acc3 = accounts[4]
     let tryCatch = require('./exceptions.js').tryCatch
     let errTypes = require('./exceptions.js').errTypes
     let nullAddr = '0x0000000000000000000000000000000000000000'
@@ -183,6 +184,31 @@ contract('MineEmpireDrill', accounts => {
         await tryCatch(mineEmpireDrill.upgradeDrill(1, {from: acc2}), errTypes.revert)
     })
 
+    it('should increase maxFreeMints', async () => {
+        let maxFreeMints = await mineEmpireDrill.getMaxFreeMints()
+        assert.equal(maxFreeMints, 0)
+        await mineEmpireDrill.updateMaxFreeMints(1)
+        maxFreeMints = await mineEmpireDrill.getMaxFreeMints()
+        assert.equal(maxFreeMints, 1)
+    })
 
+    it('should give acc3 2 free mints, but only mint 1 because of maxFreeMints', async () => {
+        await tryCatch(mineEmpireDrill.freeMintDrill(1, 0, {from: acc3}), errTypes.revert)
+        await mineEmpireDrill.updateFreeMint(acc3, 1, 0, 2)
+        await mineEmpireDrill.freeMintDrill(1, 0, {from: acc3})
+        let drill = await mineEmpireDrill.getDrill(3)
+        assert.equal(drill.drillId, '3')
+        assert.equal(drill.drillType, '1')
+        assert.equal(drill.level, '0')
 
+        await tryCatch(mineEmpireDrill.freeMintDrill(1, 0, {from: acc3}), errTypes.revert)
+
+        await mineEmpireDrill.updateMaxFreeMints(2)
+        
+        await mineEmpireDrill.freeMintDrill(1, 0, {from: acc3})
+        drill = await mineEmpireDrill.getDrill(4)
+        assert.equal(drill.drillId, '4')
+        assert.equal(drill.drillType, '1')
+        assert.equal(drill.level, '0')
+    })
 })

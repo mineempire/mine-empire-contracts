@@ -10,6 +10,8 @@ contract MineEmpireDrill is ERC721 {
     address payable public treasury;
     IERC20 public cosmicCash;
     uint public nextDrillId = 1;
+    uint public totalFreeMints = 0;
+    uint public maxFreeMints = 0;
 
     struct Drill {
         uint drillId;
@@ -31,6 +33,7 @@ contract MineEmpireDrill is ERC721 {
     mapping(uint => mapping(uint => uint)) public drillsAvailableAtLevel;
     mapping(uint => mapping(uint => uint)) public drillsMintedAtLevel;
     mapping(uint => mapping(uint => uint)) public drillPriceAtLevel;
+    mapping(address => mapping(uint => mapping(uint => uint))) public freeMints;
 
     constructor(IERC20 _cosmicCash) ERC721("Mine Empire Drill", "DRILL") {
         owner = msg.sender;
@@ -41,6 +44,7 @@ contract MineEmpireDrill is ERC721 {
     // EVENTS
     event LogDrillTypeAdded(uint _type);
     event LogMint(uint _drillId);
+    event LogFreeMint(uint _drillId);
     event LogDrillUpgrade(uint _drillId);
 
     // MODIFIERS
@@ -51,6 +55,12 @@ contract MineEmpireDrill is ERC721 {
 
     modifier mintAvailable(uint _type, uint _level) {
         require (drillsMintedAtLevel[_type][_level] < drillsAvailableAtLevel[_type][_level], "mint not available");
+        _;
+    }
+
+    modifier freeMintAvailable(uint _type, uint _level, address _user) {
+        require (freeMints[_user][_type][_level] > 0, "free mint not available");
+        require (totalFreeMints < maxFreeMints, "free mint exceeds max available");
         _;
     }
 
@@ -122,6 +132,16 @@ contract MineEmpireDrill is ERC721 {
         drillsAvailableAtLevel[_type][_level] = _count;
     }
 
+    // update max free mints
+    function updateMaxFreeMints(uint _amount) public onlyOwner(msg.sender) {
+        maxFreeMints = _amount;
+    }
+
+    // add free mint
+    function updateFreeMint(address _user, uint _type, uint _level, uint _amount) public onlyOwner(msg.sender) {
+        freeMints[_user][_type][_level] = _amount;
+    }
+
     // update mining power
     function updateMiningPower(
         uint _type, 
@@ -153,6 +173,16 @@ contract MineEmpireDrill is ERC721 {
     // get drill
     function getDrill(uint _drillId) public view drillExists(_drillId) returns(Drill memory) {
         return drillIdToDrillMap[_drillId];
+    }
+
+    // get totalFreeMints
+    function getTotalFreeMints() public view returns(uint) {
+        return totalFreeMints;
+    }
+
+    // get maxFreeMints
+    function getMaxFreeMints() public view returns(uint) {
+        return maxFreeMints;
     }
     
     // get mint price and currency
@@ -194,6 +224,20 @@ contract MineEmpireDrill is ERC721 {
         drillsMintedAtLevel[_type][_level]++;
         _safeMint(msg.sender, nextDrillId);
         emit LogMint(nextDrillId);
+        nextDrillId++;
+    }
+
+    function freeMintDrill(uint _type, uint _level) public freeMintAvailable(_type, _level, msg.sender) {
+        freeMints[msg.sender][_type][_level]--;
+        totalFreeMints++;
+        Drill memory drill = Drill(
+            nextDrillId,
+            _type,
+            _level
+        );
+        drillIdToDrillMap[nextDrillId] = drill;
+        drillsMintedAtLevel[_type][_level]++;
+        emit LogFreeMint(nextDrillId);
         nextDrillId++;
     }
 

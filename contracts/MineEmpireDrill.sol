@@ -92,12 +92,10 @@ contract MineEmpireDrill is ERC721 {
 
     // ONLY OWNER
     
-    // update treasury address
     function updateTreasuryAddress(address payable _address) public onlyOwner(msg.sender) {
         treasury = _address;
     }
 
-    // add new drill type
     function addNewDrillType(
         uint _type,
         string memory _name,
@@ -118,7 +116,6 @@ contract MineEmpireDrill is ERC721 {
         emit LogDrillTypeAdded(_type);
     }
 
-    // update mint price
     function updateMintPrice(
         uint _type,
         uint _level,
@@ -127,22 +124,18 @@ contract MineEmpireDrill is ERC721 {
         drillPriceAtLevel[_type][_level] = _mintPrice;
     }
 
-    // update max drills
     function updateDrillsAvailable(uint _type, uint _level, uint _count) public onlyOwner(msg.sender) {
         drillsAvailableAtLevel[_type][_level] = _count;
     }
 
-    // update max free mints
     function updateMaxFreeMints(uint _amount) public onlyOwner(msg.sender) {
         maxFreeMints = _amount;
     }
 
-    // add free mint
     function updateFreeMint(address _user, uint _type, uint _level, uint _amount) public onlyOwner(msg.sender) {
         freeMints[_user][_type][_level] = _amount;
     }
 
-    // update mining power
     function updateMiningPower(
         uint _type, 
         uint _level, 
@@ -151,7 +144,6 @@ contract MineEmpireDrill is ERC721 {
         drillTypeToDrillStatsMap[_type].miningPowerAtLevel[_level] = _power;
     }
 
-    // update max level
     function updateMaxLevel(
         uint _type,
         uint _maxLevel
@@ -159,7 +151,6 @@ contract MineEmpireDrill is ERC721 {
         drillTypeToDrillStatsMap[_type].maxLevel = _maxLevel;
     }
 
-    //update upgrade requirement
     function updateUpgradeRequirement(
         uint _type,
         uint _level,
@@ -170,34 +161,29 @@ contract MineEmpireDrill is ERC721 {
 
     // GETTERS
 
-    // get drill
     function getDrill(uint _drillId) public view drillExists(_drillId) returns(Drill memory) {
         return drillIdToDrillMap[_drillId];
     }
 
-    // get totalFreeMints
     function getTotalFreeMints() public view returns(uint) {
         return totalFreeMints;
     }
 
-    // get maxFreeMints
     function getMaxFreeMints() public view returns(uint) {
         return maxFreeMints;
     }
     
-    // get mint price and currency
     function getMintPrice(uint _type, uint _level) public view drillTypeExists(_type) returns(uint) {
         return drillPriceAtLevel[_type][_level];
     }
 
-    // get mining level upgrade requirement
     function getUpgradeRequirement(
         uint _type,
         uint _level
     ) public view drillTypeExists(_type) drillTypeLevelWithinBounds(_type, _level) returns(uint) {
         return drillTypeToDrillStatsMap[_type].upgradeRequirements[_level];
     }
-    // get mining power
+    
     function getMiningPower(uint _drillId) public view drillExists(_drillId) returns(uint) {
         Drill memory drill = drillIdToDrillMap[_drillId];
         return drillTypeToDrillStatsMap[drill.drillType].miningPowerAtLevel[drill.level];
@@ -209,7 +195,6 @@ contract MineEmpireDrill is ERC721 {
 
     // USER INTERACTIONS
 
-    // mint drill
     function mintDrill(uint _type, uint _level) public payable 
     mintAvailable(_type, _level) 
     correctMintPrice(_type, _level, msg.value) {
@@ -241,14 +226,12 @@ contract MineEmpireDrill is ERC721 {
         nextDrillId++;
     }
 
-    // upgrade drill
     function upgradeDrill(uint _drillId) public drillExists(_drillId) {
         require(super.ownerOf(_drillId) == msg.sender, "drill not owned");
         Drill memory drill = drillIdToDrillMap[_drillId];
         DrillTypeInfo storage drillInfo = drillTypeToDrillStatsMap[drill.drillType];
         require(drill.level < drillInfo.maxLevel, "drill at max level");
 
-        // get resource
         uint amountForUpgrade = drillInfo.upgradeRequirements[drill.level + 1];
         require(amountForUpgrade > 0, "amount for upgrade not greater than zero");
         cosmicCash.transferFrom(msg.sender, treasury, amountForUpgrade);

@@ -111,32 +111,26 @@ contract Gades {
 
     // GETTERS
 
-    // get capacity at level
     function getCapacityAtLevel(uint _level) public view levelExists(_level) returns(uint) {
         return capacityAtLevel[_level];
     }
 
-    // get user level
     function getUserLevel(address _userAddress) public view returns(uint) {
         return userLevel[_userAddress];
     }
 
-    // get stake
     function getStake(address _address) public view returns(Stake memory) {
         return stakes[_address];
     }
     
-    // get base production
     function getBaseProduction() public view returns(uint) {
         return baseProduction;
     }
 
-    // get max level
     function getMaxLevel() public view returns(uint) {
         return maxLevel;
     }
 
-    // get accumulated iron
     function getAccumulatedIron(address _userAddress) public view drillStaked(_userAddress) returns(uint) {
         Stake memory curStake = stakes[_userAddress];
         uint time = block.timestamp - curStake.timestamp;
@@ -151,7 +145,6 @@ contract Gades {
 
     // USER INTERACTIONS
 
-    // stake
     function stake(uint _drillId) public drillNotStaked(msg.sender) {
         mineEmpireDrill.safeTransferFrom(msg.sender, address(this), _drillId);
         MineEmpireDrill.Drill memory drill = mineEmpireDrill.getDrill(_drillId);
@@ -160,14 +153,12 @@ contract Gades {
             drill);
     }
 
-    // collect
     function collectIron() public drillStaked(msg.sender) {
         uint amount = getAccumulatedIron(msg.sender);
         iron.mint(msg.sender, amount);
         stakes[msg.sender].timestamp = block.timestamp;
     }
 
-    // unstake and collect
     function unstake() public drillStaked(msg.sender) {
         uint amount = getAccumulatedIron(msg.sender);
         iron.transfer(msg.sender, amount);
@@ -175,7 +166,6 @@ contract Gades {
         delete stakes[msg.sender];
     }
 
-    // upgrade
     function upgrade() public {
         uint curLevel = userLevel[msg.sender];
         require(curLevel < 9, "level at max");

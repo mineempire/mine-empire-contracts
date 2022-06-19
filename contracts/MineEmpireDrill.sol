@@ -27,6 +27,16 @@ contract MineEmpireDrill is ERC721 {
         mapping(uint => uint) upgradeRequirements;
     }
 
+    struct AlternativeMint {
+        uint alternativeMintId;
+        uint drillType;
+        uint level;
+        IERC20 currency;
+        uint price;
+        uint minted;
+        uint maxMintsAllowed;
+    }
+
     mapping(uint => Drill) public drillIdToDrillMap;
     mapping(uint => DrillTypeInfo) public drillTypeToDrillStatsMap;
     // type -> level -> available
@@ -34,6 +44,7 @@ contract MineEmpireDrill is ERC721 {
     mapping(uint => mapping(uint => uint)) public drillsMintedAtLevel;
     mapping(uint => mapping(uint => uint)) public drillPriceAtLevel;
     mapping(address => mapping(uint => mapping(uint => uint))) public freeMints;
+    mapping(uint => AlternativeMint) public alternativeMints;
 
     constructor(IERC20 _cosmicCash) ERC721("Mine Empire Drill", "DRILL") {
         owner = msg.sender;
@@ -45,6 +56,7 @@ contract MineEmpireDrill is ERC721 {
     event LogDrillTypeAdded(uint _type);
     event LogMint(uint _drillId);
     event LogFreeMint(uint _drillId);
+    event LogAlternativeMint(uint _drillId);
     event LogDrillUpgrade(uint _drillId);
 
     // MODIFIERS
@@ -87,6 +99,16 @@ contract MineEmpireDrill is ERC721 {
 
     modifier correctMintPrice(uint _type, uint _level, uint _mintPrice) {
         require(drillPriceAtLevel[_type][_level] == _mintPrice, "incorrect mint price");
+        _;
+    }
+
+    modifier altMintExists(uint _id) {
+        require(alternativeMints[_id].alternativeMintId == _id, "alternative mint id doesn't exist");
+        _;
+    }
+
+    modifier altMintAvailable(uint _id) {
+        require(alternativeMints[_id].minted < alternativeMints[_id].maxMintsAllowed, "no mints left");
         _;
     }
 
@@ -159,6 +181,17 @@ contract MineEmpireDrill is ERC721 {
         drillTypeToDrillStatsMap[_type].upgradeRequirements[_level] = _upgradeRequirement;
     }
 
+    function addAlternativeMint(
+        uint _id,
+        uint _type,
+        uint _level,
+        IERC20 _currency,
+        uint _price,
+        uint _maxMintsAllowed
+    ) public onlyOwner(msg.sender) drillTypeExists(_type) drillTypeLevelWithinBounds(_type, _level) {
+        alternativeMints[_id] = AlternativeMint(_id, _type, _level, _currency, _price, 0, _maxMintsAllowed);
+    }
+
     // GETTERS
 
     function getDrill(uint _drillId) public view drillExists(_drillId) returns(Drill memory) {
@@ -223,6 +256,19 @@ contract MineEmpireDrill is ERC721 {
         drillIdToDrillMap[nextDrillId] = drill;
         drillsMintedAtLevel[_type][_level]++;
         emit LogFreeMint(nextDrillId);
+        nextDrillId++;
+    }
+
+    function alternativeMintDrill(uint _id) public altMintExists(_id) altMintAvailable(_id) {
+        alternativeMints[_id].minted++;
+        alternativeMints[_id].currency.transferFrom(msg.sender, treasury, alternativeMints[_id].price);
+        Drill memory drill = Drill(
+            nextDrillId,
+            alternativeMints[_id].drillType,
+            alternativeMints[_id].level
+        );
+        drillIdToDrillMap[nextDrillId] = drill;
+        emit LogAlternativeMint(nextDrillId);
         nextDrillId++;
     }
 

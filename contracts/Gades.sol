@@ -13,7 +13,6 @@ contract Gades {
     ERC20PresetMinterPauser public cosmicCash;
     address public owner;
     address payable treasury;
-    uint public baseProduction;
     struct Stake {
         uint timestamp;
         MineEmpireDrill.Drill drill;
@@ -24,33 +23,48 @@ contract Gades {
     mapping(uint => uint) public upgradeRequirementAtLevel;
     mapping(address => uint) public userLevel;
     mapping(address => Stake) public stakes;
+    mapping(uint => uint) public productionRate;
+    uint public SECONDS_IN_PERIOD = 2592000;
+    uint public GENESIS_TIME;
 
     constructor(ERC20PresetMinterPauser _iron, ERC20PresetMinterPauser _cosmicCash, MineEmpireDrill _drill) {
         owner = msg.sender;
-        baseProduction = 289351851900000;
+        GENESIS_TIME = block.timestamp;
         iron = _iron;
         cosmicCash = _cosmicCash;
         mineEmpireDrill = _drill;
         maxLevel = 9;
-        capacityAtLevel[0] = 175e18;
-        capacityAtLevel[1] = 185e18;
-        capacityAtLevel[2] = 200e18;
-        capacityAtLevel[3] = 225e18;
-        capacityAtLevel[4] = 255e18;
-        capacityAtLevel[5] = 295e18;
-        capacityAtLevel[6] = 350e18;
-        capacityAtLevel[7] = 410e18;
-        capacityAtLevel[8] = 485e18;
-        capacityAtLevel[9] = 575e18;
-        upgradeRequirementAtLevel[1] = 100e16;
-        upgradeRequirementAtLevel[2] = 120e16;
-        upgradeRequirementAtLevel[3] = 156e16;
-        upgradeRequirementAtLevel[4] = 2184e15;
-        upgradeRequirementAtLevel[5] = 3276e15;
-        upgradeRequirementAtLevel[6] = 5242e15;
-        upgradeRequirementAtLevel[7] = 8911e15;
-        upgradeRequirementAtLevel[8] = 16039e15;
-        upgradeRequirementAtLevel[9] = 30475e15;
+        capacityAtLevel[0] = 10215e18;
+        capacityAtLevel[1] = 11747e18;
+        capacityAtLevel[2] = 13509e18;
+        capacityAtLevel[3] = 15536e18;
+        capacityAtLevel[4] = 19420e18;
+        capacityAtLevel[5] = 24275e18;
+        capacityAtLevel[6] = 33984e18;
+        capacityAtLevel[7] = 50977e18;
+        capacityAtLevel[8] = 76465e18;
+        capacityAtLevel[9] = 125985e18;
+        upgradeRequirementAtLevel[1] = 25e18;
+        upgradeRequirementAtLevel[2] = 25e18;
+        upgradeRequirementAtLevel[3] = 25e18;
+        upgradeRequirementAtLevel[4] = 40e18;
+        upgradeRequirementAtLevel[5] = 40e18;
+        upgradeRequirementAtLevel[6] = 75e18;
+        upgradeRequirementAtLevel[7] = 75e18;
+        upgradeRequirementAtLevel[8] = 120e18;
+        upgradeRequirementAtLevel[9] = 150e18;
+        productionRate[0] = 3941e13;
+        productionRate[1] = 3350e13;
+        productionRate[2] = 2881e13;
+        productionRate[3] = 2506e13;
+        productionRate[4] = 2206e13;
+        productionRate[5] = 1963e13;
+        productionRate[6] = 1767e13;
+        productionRate[7] = 1608e13;
+        productionRate[8] = 1479e13;
+        productionRate[9] = 1376e13;
+        productionRate[10] = 1293e13;
+        productionRate[11] = 1228e13;
     }
 
     function onERC721Received(
@@ -122,9 +136,18 @@ contract Gades {
     function getStake(address _address) public view returns(Stake memory) {
         return stakes[_address];
     }
+
+    // TODO : test this
+    function getCurrentPeriod() public view returns(uint) {
+        return (block.timestamp - GENESIS_TIME) / SECONDS_IN_PERIOD;
+    }
     
     function getBaseProduction() public view returns(uint) {
-        return baseProduction;
+        uint period = getCurrentPeriod();
+        if (period > 11) {
+            period = 11;
+        }
+        return productionRate[period];
     }
 
     function getMaxLevel() public view returns(uint) {
@@ -136,6 +159,7 @@ contract Gades {
         uint time = block.timestamp - curStake.timestamp;
         uint miningPower = mineEmpireDrill.getMiningPower(curStake.drill.drillId);
         uint capacity = capacityAtLevel[userLevel[_userAddress]];
+        uint baseProduction = getBaseProduction();
         uint amount = time * baseProduction / 100 * miningPower;
         if (capacity < amount) {
             amount = capacity;

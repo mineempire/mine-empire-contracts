@@ -8,7 +8,7 @@ contract Energy is ERC20 {
     mapping(address => bool) public allowedTransferrers;
     address public owner;
 
-    constructor() ERC20("Energy", "NRG") {
+    constructor() ERC20("Energy", "ENERGY") {
         owner = msg.sender;
     }
 

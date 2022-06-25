@@ -45,6 +45,7 @@ contract MineEmpireDrill is ERC721 {
     mapping(uint => mapping(uint => uint)) public drillPriceAtLevel;
     mapping(address => mapping(uint => mapping(uint => uint))) public freeMints;
     mapping(uint => AlternativeMint) public alternativeMints;
+    mapping(uint => string) public URIs;
 
     constructor(IERC20 _cosmicCash) ERC721("Mine Empire Drill", "DRILL") {
         owner = msg.sender;
@@ -192,6 +193,10 @@ contract MineEmpireDrill is ERC721 {
         alternativeMints[_id] = AlternativeMint(_id, _type, _level, _currency, _price, 0, _maxMintsAllowed);
     }
 
+    function setURIForLevel(uint _level, string memory _uri) public onlyOwner(msg.sender) {
+        URIs[_level] = _uri;
+    }
+
     // GETTERS
 
     function getDrill(uint _drillId) public view drillExists(_drillId) returns(Drill memory) {
@@ -226,6 +231,12 @@ contract MineEmpireDrill is ERC721 {
         return drillsAvailableAtLevel[_type][_level];
     }
 
+    function tokenURI(uint256 tokenId) public view override returns(string memory) {
+        require(_exists(tokenId), "ERC721Metadata: URI query for nonexistent token");
+        uint level = drillIdToDrillMap[tokenId].level;
+        return URIs[level];
+    }
+
     // USER INTERACTIONS
 
     function mintDrill(uint _type, uint _level) public payable 
@@ -255,6 +266,7 @@ contract MineEmpireDrill is ERC721 {
         );
         drillIdToDrillMap[nextDrillId] = drill;
         drillsMintedAtLevel[_type][_level]++;
+        _safeMint(msg.sender, nextDrillId);
         emit LogFreeMint(nextDrillId);
         nextDrillId++;
     }
@@ -268,6 +280,7 @@ contract MineEmpireDrill is ERC721 {
             alternativeMints[_id].level
         );
         drillIdToDrillMap[nextDrillId] = drill;
+        _safeMint(msg.sender, nextDrillId);
         emit LogAlternativeMint(nextDrillId);
         nextDrillId++;
     }

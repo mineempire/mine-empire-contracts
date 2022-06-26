@@ -185,7 +185,7 @@ contract Gades {
 
     function unstake() public drillStaked(msg.sender) {
         uint amount = getAccumulatedIron(msg.sender);
-        iron.transfer(msg.sender, amount);
+        iron.mint(msg.sender, amount);
         mineEmpireDrill.safeTransferFrom(address(this), msg.sender, stakes[msg.sender].drill.drillId);
         delete stakes[msg.sender];
     }

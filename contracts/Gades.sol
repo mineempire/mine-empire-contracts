@@ -199,6 +199,4 @@ contract Gades {
         emit CapacityUpgraded(msg.sender, userLevel[msg.sender]);
         return;
     }
-    
-
 }

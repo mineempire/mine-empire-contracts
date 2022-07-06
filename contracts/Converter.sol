@@ -42,7 +42,7 @@ contract Converter {
         uint conversionRate = rates[address(_resource)].conversionRate;
         uint amount = _amount/conversionRate;
         _resource.transferFrom(msg.sender, treasury, _amount);
-        cosmicCash.mint(msg.sender, amount);
+        cosmicCash.transfer(msg.sender, amount);
         emit conversionComplete(address(_resource), address(cosmicCash), amount);
         return;
     }

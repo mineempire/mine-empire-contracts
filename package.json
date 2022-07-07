@@ -1,7 +1,8 @@
 {
   "dependencies": {
     "@metamask/onboarding": "^1.0.1",
-    "@openzeppelin/contracts": "^4.5.0"
+    "@openzeppelin/contracts": "^4.5.0",
+    "solc": "^0.8.15"
   },
   "name": "deminer",
   "version": "1.0.0",
@@ -14,5 +15,8 @@
   },
   "author": "",
   "license": "ISC",
-  "description": ""
+  "description": "",
+  "devDependencies": {
+    "truffle-plugin-stdjsonin": "github:mhrsalehi/truffle-plugin-stdjsonin"
+  }
 }

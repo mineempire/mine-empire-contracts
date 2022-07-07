@@ -24,19 +24,6 @@ contract("MineEmpireDrill", (accounts) => {
     assert.notEqual(cosmicCash, "");
   });
 
-  it("should not update maxDrills, not owner", async () => {
-    let drillsAvailable = await mineEmpireDrill.getDrillsAvailableAtLevel(1, 0);
-    assert.equal(drillsAvailable, 100);
-    await tryCatch(
-      mineEmpireDrill.updateDrillsAvailable(1, 0, 1, { from: nonOwner }),
-      errTypes.revert
-    );
-    await mineEmpireDrill.updateDrillsAvailable(1, 0, 1, { from: owner });
-
-    drillsAvailable = await mineEmpireDrill.getDrillsAvailableAtLevel(1, 0);
-    assert.equal(drillsAvailable, 1);
-  });
-
   it("should add a new drill type", async () => {
     /*
         type: 1
@@ -50,7 +37,6 @@ contract("MineEmpireDrill", (accounts) => {
     await mineEmpireDrill.addNewDrillType(
       1,
       "Basic Drill",
-      "2000000000000000000",
       3,
       ["100", "110", "121"],
       ["0", "1000", "2000"]
@@ -60,21 +46,12 @@ contract("MineEmpireDrill", (accounts) => {
       mineEmpireDrill.addNewDrillType(
         1,
         "Basic Drill",
-        "2000000000000000000",
         3,
         ["100", "110", "121"],
         ["0", "1000", "2000"]
       ),
       errTypes.revert
     );
-    const mintPrice = await mineEmpireDrill.getMintPrice(1, 0);
-    assert.equal(mintPrice, "2000000000000000000");
-  });
-
-  it("should update mint price", async () => {
-    await mineEmpireDrill.updateMintPrice(1, 0, "3000000000000000000");
-    const mintPrice = await mineEmpireDrill.getMintPrice(1, 0);
-    assert.equal(mintPrice, "3000000000000000000");
   });
 
   it("should update upgrade requirements", async () => {
@@ -100,72 +77,86 @@ contract("MineEmpireDrill", (accounts) => {
     await mineEmpireDrill.updateTreasuryAddress(treasury);
   });
 
-  it("should mint a drill", async () => {
-    let balance = await web3.eth.getBalance(treasury);
-    assert.equal(balance, web3.utils.toWei("100", "ether"));
+  it("should add alt mint type", async () => {
+    await mineEmpireDrill.addAlternativeMint(
+      1,
+      1,
+      0,
+      cosmicCash.address,
+      "100",
+      "3",
+      "0"
+    );
 
-    await mineEmpireDrill.mintDrill(1, 0, {
+    await mineEmpireDrill.addAlternativeMint(
+      1,
+      1,
+      0,
+      cosmicCash.address,
+      "90",
+      "3",
+      "0"
+    );
+  });
+
+  it("should alt mint a drill", async () => {
+    let cscBal = await cosmicCash.balanceOf(treasury);
+    assert.equal(cscBal, "0");
+    await cosmicCash.mint(acc2, "420", { from: owner });
+    await cosmicCash.approve(mineEmpireDrill.address, "1000", { from: acc2 });
+    let acc2Bal = await cosmicCash.balanceOf(acc2);
+    assert.equal(acc2Bal, "420");
+
+    await mineEmpireDrill.alternativeMintDrill(1, {
       from: acc2,
-      value: web3.utils.toWei("3", "ether"),
     });
+
     const drill = await mineEmpireDrill.getDrill(1);
     assert.equal(drill.drillId, "1");
     assert.equal(drill.drillType, "1");
     assert.equal(drill.level, "0");
 
-    balance = await web3.eth.getBalance(treasury);
-    assert.equal(balance, web3.utils.toWei("103", "ether"));
-  });
+    cscBal = await cosmicCash.balanceOf(treasury);
+    assert.equal(cscBal, "90");
+    acc2Bal = await cosmicCash.balanceOf(acc2);
+    assert.equal(acc2Bal, "330");
 
-  it("should not mint because max drills", async () => {
+    await mineEmpireDrill.alternativeMintDrill(1, { from: acc2 });
+    await mineEmpireDrill.alternativeMintDrill(1, { from: acc2 });
     await tryCatch(
-      mineEmpireDrill.mintDrill(1, 0, {
-        from: acc2,
-        value: web3.utils.toWei("3", "ether"),
-      }),
+      mineEmpireDrill.alternativeMintDrill(1, { from: acc2 }),
       errTypes.revert
     );
   });
 
-  it("should mint a lv5 drill", async () => {
-    let drillsAvailable = await mineEmpireDrill.getDrillsAvailableAtLevel(1, 5);
-    assert.equal(drillsAvailable, 0);
-    let mintPrice = await mineEmpireDrill.getMintPrice(1, 5);
-    assert.equal(mintPrice, 0);
-
-    await mineEmpireDrill.updateMintPrice(1, 5, web3.utils.toWei("9", "ether"));
-    await mineEmpireDrill.updateDrillsAvailable(1, 5, 1);
-    drillsAvailable = await mineEmpireDrill.getDrillsAvailableAtLevel(1, 5);
-    assert.equal(drillsAvailable, 1);
-    mintPrice = await mineEmpireDrill.getMintPrice(1, 5);
-    assert.equal(mintPrice, "9000000000000000000");
-
-    let balance = await web3.eth.getBalance(treasury);
-    assert.equal(balance, web3.utils.toWei("103", "ether"));
-
-    await mineEmpireDrill.mintDrill(1, 5, {
-      from: acc2,
-      value: web3.utils.toWei("9", "ether"),
-    });
-    const drill = await mineEmpireDrill.getDrill(2);
-    assert.equal(drill.drillId, "2");
-    assert.equal(drill.drillType, "1");
-    assert.equal(drill.level, "5");
-
-    balance = await web3.eth.getBalance(treasury);
-    assert.equal(balance, web3.utils.toWei("112", "ether"));
-
-    await tryCatch(
-      mineEmpireDrill.mintDrill(1, 5, {
-        from: acc2,
-        value: web3.utils.toWei("9", "ether"),
-      }),
-      errTypes.revert
+  it("should mint a lv2 drill", async () => {
+    await mineEmpireDrill.addAlternativeMint(
+      2,
+      1,
+      2,
+      cosmicCash.address,
+      "150",
+      "1",
+      "0"
     );
+
+    let cscBal = await cosmicCash.balanceOf(treasury);
+    assert.equal(cscBal, "270");
+
+    await mineEmpireDrill.alternativeMintDrill(2, { from: acc2 });
+    const drill = await mineEmpireDrill.getDrill(4);
+    assert.equal(drill.level, "2");
+
+    cscBal = await cosmicCash.balanceOf(treasury);
+    assert.equal(cscBal, "420");
   });
 
   it("should mint cosmic cash to acc2", async () => {
     await cosmicCash.mint(acc2, "1000000");
+  });
+
+  it("should set cosmic cash", async () => {
+    await mineEmpireDrill.updateCosmicCash(cosmicCash.address);
   });
 
   it("should not be able to upgrade drill because drill doesnt exist", async () => {
@@ -198,11 +189,9 @@ contract("MineEmpireDrill", (accounts) => {
     let miningPower = await mineEmpireDrill.getMiningPower(1);
     assert.equal(miningPower, "100");
 
-    await cosmicCash.approve(
-      mineEmpireDrill.address,
-      web3.utils.toWei("1", "ether"),
-      { from: acc2 }
-    );
+    await cosmicCash.approve(mineEmpireDrill.address, "1000000", {
+      from: acc2,
+    });
     await mineEmpireDrill.upgradeDrill(1, { from: acc2 });
 
     balance = await cosmicCash.balanceOf(acc2);
@@ -227,44 +216,6 @@ contract("MineEmpireDrill", (accounts) => {
   it("should not be able to upgrade because max level", async () => {
     await tryCatch(
       mineEmpireDrill.upgradeDrill(1, { from: acc2 }),
-      errTypes.revert
-    );
-  });
-
-  it("should add alternative mint type", async () => {
-    await mineEmpireDrill.addAlternativeMint(
-      1,
-      1,
-      0,
-      cosmicCash.address,
-      100,
-      2
-    );
-    await cosmicCash.mint(acc4, 300);
-
-    let bal = await cosmicCash.balanceOf(acc4);
-    assert.equal(bal, 300);
-    await cosmicCash.approve(mineEmpireDrill.address, 300, { from: acc4 });
-    await mineEmpireDrill.alternativeMintDrill(1, { from: acc4 });
-
-    bal = await cosmicCash.balanceOf(acc4);
-    assert.equal(bal, 200);
-    let drill = await mineEmpireDrill.getDrill(5);
-    assert.equal(drill.drillId, 5);
-    assert.equal(drill.drillType, 1);
-    assert.equal(drill.level, 0);
-
-    await mineEmpireDrill.alternativeMintDrill(1, { from: acc4 });
-
-    bal = await cosmicCash.balanceOf(acc4);
-    assert.equal(bal, 100);
-    drill = await mineEmpireDrill.getDrill(6);
-    assert.equal(drill.drillId, 6);
-    assert.equal(drill.drillType, 1);
-    assert.equal(drill.level, 0);
-
-    await tryCatch(
-      mineEmpireDrill.alternativeMintDrill(1, { from: acc4 }),
       errTypes.revert
     );
   });

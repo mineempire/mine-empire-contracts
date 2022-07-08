@@ -2,21 +2,20 @@
 
 pragma solidity ^0.8.0;
 
-import "@openzeppelin/contracts/token/ERC20/presets/ERC20PresetMinterPauser.sol";
+import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 contract Converter {
     address public owner;
-    ERC20PresetMinterPauser public cosmicCash;
-    address payable treasury;
+    ERC20 public cosmicCash;
+    address DEAD = 0x000000000000000000000000000000000000dEaD;
     struct Resource {
-        ERC20PresetMinterPauser resource;
+        ERC20 resource;
         uint conversionRate;
     }
     mapping(address => Resource) public rates;
 
-    constructor(ERC20PresetMinterPauser _cosmicCash) {
+    constructor() {
         owner = msg.sender;
-        cosmicCash = _cosmicCash;
     }
 
     // EVENTS
@@ -29,21 +28,20 @@ contract Converter {
     }
 
     // ONLY OWNER
-    function setResource(ERC20PresetMinterPauser _resource, uint _conversionRate) public onlyOwner(msg.sender) {
+    function setResource(ERC20 _resource, uint _conversionRate) public onlyOwner(msg.sender) {
         rates[address(_resource)] = Resource(_resource, _conversionRate);
     }
 
-    function setTreasury(address payable _address) public onlyOwner(msg.sender) {
-        treasury = _address;
+    function setCosmicCash(ERC20 _cosmicCash) public onlyOwner(msg.sender) {
+        cosmicCash = _cosmicCash;
     }
 
     // USER INTERFACE
-    function convert(ERC20PresetMinterPauser _resource, uint _amount) public {
+    function convert(ERC20 _resource, uint _amount) public {
         uint conversionRate = rates[address(_resource)].conversionRate;
         uint amount = _amount/conversionRate;
-        _resource.transferFrom(msg.sender, treasury, _amount);
+        _resource.transferFrom(msg.sender, DEAD, _amount);
         cosmicCash.transfer(msg.sender, amount);
         emit conversionComplete(address(_resource), address(cosmicCash), amount);
-        return;
     }
 }

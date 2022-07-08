@@ -3,14 +3,14 @@
 pragma solidity ^0.8.0;
 
 import "./MineEmpireDrill.sol";
+import "./Iron.sol";
 import "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/token/ERC20/presets/ERC20PresetMinterPauser.sol";
+import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 contract Gades {
     MineEmpireDrill public mineEmpireDrill;
-    ERC20PresetMinterPauser public iron;
-    ERC20PresetMinterPauser public cosmicCash;
+    Iron public iron;
+    ERC20 public cosmicCash;
     address public owner;
     address payable treasury;
     struct Stake {
@@ -27,7 +27,7 @@ contract Gades {
     uint public SECONDS_IN_PERIOD = 2592000;
     uint public GENESIS_TIME;
 
-    constructor(ERC20PresetMinterPauser _iron, ERC20PresetMinterPauser _cosmicCash, MineEmpireDrill _drill) {
+    constructor(Iron _iron, ERC20 _cosmicCash, MineEmpireDrill _drill) {
         owner = msg.sender;
         GENESIS_TIME = block.timestamp;
         iron = _iron;
@@ -139,14 +139,15 @@ contract Gades {
 
     // TODO : test this
     function getCurrentPeriod() public view returns(uint) {
-        return (block.timestamp - GENESIS_TIME) / SECONDS_IN_PERIOD;
+        uint period = (block.timestamp - GENESIS_TIME) / SECONDS_IN_PERIOD;
+        if (period > 11) {
+            period = 11;
+        }
+        return period;
     }
     
     function getBaseProduction() public view returns(uint) {
         uint period = getCurrentPeriod();
-        if (period > 11) {
-            period = 11;
-        }
         return productionRate[period];
     }
 
@@ -170,8 +171,9 @@ contract Gades {
     // USER INTERACTIONS
 
     function stake(uint _drillId) public drillNotStaked(msg.sender) {
-        mineEmpireDrill.safeTransferFrom(msg.sender, address(this), _drillId);
         MineEmpireDrill.Drill memory drill = mineEmpireDrill.getDrill(_drillId);
+        require(drill.drillType == 1, "incorrect drill type");
+        mineEmpireDrill.safeTransferFrom(msg.sender, address(this), _drillId);
         stakes[msg.sender] = Stake(
             block.timestamp,
             drill);

@@ -16,7 +16,7 @@ contract DailyEnergy {
     constructor() {
         owner = msg.sender;
         MAX_ENERGY = 30e18;
-        AMOUNT_PER_SECOND = 3472e11;
+        AMOUNT_PER_SECOND = 1157e11;
     }
 
     // MODIFIERS

@@ -137,7 +137,6 @@ contract Gades {
         return stakes[_address];
     }
 
-    // TODO : test this
     function getCurrentPeriod() public view returns(uint) {
         uint period = (block.timestamp - GENESIS_TIME) / SECONDS_IN_PERIOD;
         if (period > 11) {

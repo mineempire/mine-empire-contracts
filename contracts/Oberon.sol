@@ -11,8 +11,10 @@ contract Oberon {
     MineEmpireDrill public mineEmpireDrill;
     Cobalt public cobalt;
     ERC20 public cosmicCash;
+    ERC20 public energy;
     address public owner;
-    address payable treasury;
+    address treasury;
+    address DEAD = 0x000000000000000000000000000000000000dEaD;
     struct Stake {
         uint timestamp;
         MineEmpireDrill.Drill drill;
@@ -24,6 +26,9 @@ contract Oberon {
     mapping(address => uint) public userLevel;
     mapping(address => Stake) public stakes;
     mapping(uint => uint) public productionRate;
+    mapping(address => bool) public unlocked;
+    uint public CSC_UNLOCK_PRICE = 25e18;
+    uint public ENERGY_UNLOCK_PRICE = 250e18;
     uint public SECONDS_IN_PERIOD = 2592000;
     uint public GENESIS_TIME;
 
@@ -100,6 +105,11 @@ contract Oberon {
         _;
     }
 
+    modifier userUnlocked(address _user) {
+        require(unlocked[_user] == true, "Oberon not unlocked for user");
+        _;
+    }
+
     // ONLY OWNER
     
     // update treasury
@@ -122,6 +132,12 @@ contract Oberon {
         require(_level <= maxLevel, "level not less than max level");
         upgradeRequirementAtLevel[_level] = _price;
     }
+
+    function updateEnergy(ERC20 _energy) public onlyOwner(msg.sender) {
+        energy = _energy;
+    }
+
+    // GETTERS
 
     function getCurrentPeriod() public view returns(uint) {
         uint period = (block.timestamp - GENESIS_TIME) / SECONDS_IN_PERIOD;
@@ -149,9 +165,18 @@ contract Oberon {
         return amount;
     }
 
-        // USER INTERACTIONS
+    // USER INTERACTIONS
 
-    function stake(uint _drillId) public drillNotStaked(msg.sender) {
+    function unlock(bool useCSC) public {
+        if (useCSC) {
+            cosmicCash.transferFrom(msg.sender, treasury, CSC_UNLOCK_PRICE);
+        } else {
+            energy.transferFrom(msg.sender, DEAD, ENERGY_UNLOCK_PRICE);
+        }
+        unlocked[msg.sender] = true;
+    }
+
+    function stake(uint _drillId) public drillNotStaked(msg.sender) userUnlocked(msg.sender) {
         MineEmpireDrill.Drill memory drill = mineEmpireDrill.getDrill(_drillId);
         require(drill.drillType == 1, "incorrect drill type");
         mineEmpireDrill.safeTransferFrom(msg.sender, address(this), _drillId);
@@ -173,14 +198,13 @@ contract Oberon {
         delete stakes[msg.sender];
     }
 
-    function upgrade() public {
+    function upgrade() public userUnlocked(msg.sender) {
         uint curLevel = userLevel[msg.sender];
-        require(curLevel < 9, "level at max");
+        require(curLevel < maxLevel, "level at max");
         uint upgradeAmt = upgradeRequirementAtLevel[curLevel + 1];
         cosmicCash.transferFrom(msg.sender, treasury, upgradeAmt);
         userLevel[msg.sender] = curLevel + 1;
         emit CapacityUpgraded(msg.sender, userLevel[msg.sender]);
         return;
     }
-
 }

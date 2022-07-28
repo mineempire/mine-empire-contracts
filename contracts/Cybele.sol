@@ -11,7 +11,6 @@ contract Cybele {
     MineEmpireDrill public mineEmpireDrill;
     Silver public silver;
     ERC20 public cosmicCash;
-    ERC20 public energy;
     address public owner;
     address treasury;
     address DEAD = 0x000000000000000000000000000000000000dEaD;
@@ -123,10 +122,6 @@ contract Cybele {
     function updateUpgradeRequirementAtLevel(uint _level, uint _price) public onlyOwner(msg.sender) levelExists(_level){
         require(_level <= maxLevel, "level not less than max level");
         upgradeRequirementAtLevel[_level] = _price;
-    }
-
-    function updateEnergy(ERC20 _energy) public onlyOwner(msg.sender) {
-        energy = _energy;
     }
 
     // GETTERS

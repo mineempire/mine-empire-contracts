@@ -48,3 +48,10 @@ level: 15
 currency: CSC_ADDRESS
 price: "1094000000000000000000"
 maxMints: 20
+
+id: 7
+type: 1
+level: 2
+currency: CSC_ADDRESS
+price: "40000000000000000000"
+maxMints: 100

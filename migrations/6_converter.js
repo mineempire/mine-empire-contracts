@@ -1,6 +1,5 @@
-var Converter = artifacts.require('./Converter.sol')
-var CosmicCash = artifacts.require('./CosmicCash.sol')
+var Converter = artifacts.require("./Converter.sol");
 
-module.exports = function(deployer) {
-    deployer.deploy(Converter, CosmicCash.address)
-}
+module.exports = function (deployer) {
+  deployer.deploy(Converter);
+};

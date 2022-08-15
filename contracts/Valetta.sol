@@ -15,20 +15,19 @@ contract Valetta {
     uint public ticketUnlockCost;
     uint public maxCapacityLevel;
     uint public maxProductionLevel;
-    mapping(uint => uint) capacityAtLevel;
-    mapping(uint => uint) productionAtLevel;
-    mapping(uint => uint) capacityUpgradeCost;
-    mapping(uint => uint) productionUpgradeCost;
-    mapping(address => uint) userCapacityLevel;
-    mapping(address => uint) userProductionLevel;
-    mapping(address => uint) lastCollected;
+    mapping(uint => uint) public capacityAtLevel;
+    mapping(uint => uint) public productionAtLevel;
+    mapping(uint => uint) public capacityUpgradeCost;
+    mapping(uint => uint) public productionUpgradeCost;
+    mapping(address => uint) public userCapacityLevel;
+    mapping(address => uint) public userProductionLevel;
+    mapping(address => uint) public lastCollected;
     mapping(address => bool) blacklist;
     
+    uint public maxUnlocks;
+    uint public unlockedQuantity = 0;
 
-    uint maxUnlocks;
-    uint unlockedQuantity = 0;
-
-    mapping(address => bool) unlocked;
+    mapping(address => bool) public unlocked;
 
 
     constructor() {
